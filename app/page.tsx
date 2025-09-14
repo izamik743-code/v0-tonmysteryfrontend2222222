@@ -7,8 +7,6 @@ import { UpgradeSection } from "@/components/upgrade/upgrade-section"
 import { ProfileSection } from "@/components/profile/profile-section"
 import { BottomNavigation } from "@/components/layout/bottom-navigation"
 import { OnlineStats } from "@/components/stats/online-stats"
-import { telegramWebApp } from "@/lib/telegram"
-import { createClient } from "@/lib/supabase/client"
 import type { TelegramUser } from "@/types"
 
 export default function HomePage() {
@@ -17,38 +15,46 @@ export default function HomePage() {
   const [balance, setBalance] = useState(0)
   const [inventory, setInventory] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [isFromTelegram, setIsFromTelegram] = useState(false)
 
   useEffect(() => {
     initializeApp()
-
-    if (typeof window !== "undefined" && window.Telegram?.WebApp) {
-      window.Telegram.WebApp.disableVerticalSwipes?.()
-      window.Telegram.WebApp.expand()
-
-      const style = document.createElement("style")
-      style.textContent = `
-        .tgme_widget_login_button { display: none !important; }
-        .tg-spoiler { display: none !important; }
-        body { overflow-x: hidden; }
-      `
-      document.head.appendChild(style)
-    }
   }, [])
 
   const initializeApp = async () => {
     try {
-      console.log("[v0] Initializing app...")
+      if (typeof window !== "undefined" && window.Telegram?.WebApp) {
+        const tg = window.Telegram.WebApp
+        tg.ready()
+        tg.expand()
 
-      const { user: tgUser } = await telegramWebApp.initialize()
+        // Get user data directly from Telegram WebApp
+        const tgUser = tg.initDataUnsafe?.user
 
-      if (tgUser) {
-        console.log("[v0] Got Telegram user:", tgUser)
-        setUser(tgUser)
-        setIsFromTelegram(true)
-        await initializeUserInDatabase(tgUser)
+        if (tgUser) {
+          console.log("[v0] Telegram user found:", tgUser)
+          setUser({
+            id: tgUser.id,
+            first_name: tgUser.first_name,
+            last_name: tgUser.last_name || "",
+            username: tgUser.username || "",
+            language_code: tgUser.language_code || "en",
+            photo_url: tgUser.photo_url, // Added photo_url for Telegram avatar
+          })
+          await initializeUserInDatabase(tgUser)
+        } else {
+          // Demo user for testing
+          const demoUser = {
+            id: 12345,
+            first_name: "Demo User",
+            username: "demo",
+            last_name: "",
+            language_code: "en",
+          }
+          setUser(demoUser)
+          await initializeUserInDatabase(demoUser)
+        }
       } else {
-        console.log("[v0] No Telegram user, using demo")
+        // Demo user when not in Telegram
         const demoUser = {
           id: 12345,
           first_name: "Demo User",
@@ -57,20 +63,10 @@ export default function HomePage() {
           language_code: "en",
         }
         setUser(demoUser)
-        setIsFromTelegram(false)
         await initializeUserInDatabase(demoUser)
       }
     } catch (error) {
       console.error("[v0] App initialization error:", error)
-      const fallbackUser = {
-        id: 12345,
-        first_name: "User",
-        username: "user",
-        last_name: "",
-        language_code: "en",
-      }
-      setUser(fallbackUser)
-      setIsFromTelegram(false)
     } finally {
       setLoading(false)
     }
@@ -78,59 +74,44 @@ export default function HomePage() {
 
   const initializeUserInDatabase = async (tgUser: TelegramUser) => {
     try {
-      const supabase = createClient()
+      console.log("[v0] Sending user data to backend:", tgUser)
 
-      const { data: existingUser } = await supabase.from("users").select("*").eq("telegram_id", tgUser.id).single()
+      const response = await fetch("https://ton-mystery-backend.onrender.com/api/user", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          tg_id: tgUser.id,
+          username: tgUser.username || "",
+          first_name: tgUser.first_name,
+          last_name: tgUser.last_name || "",
+        }),
+      })
 
-      if (!existingUser) {
-        console.log("[v0] Creating new user in database")
-        const { data: newUser } = await supabase
-          .from("users")
-          .insert({
-            telegram_id: tgUser.id,
-            username: tgUser.username,
-            first_name: tgUser.first_name,
-            last_name: tgUser.last_name,
-            ton_balance: 0.05, // Start with 0.05 TON for testing
-            is_online: true,
-            created_at: new Date().toISOString(),
-          })
-          .select()
-          .single()
+      const result = await response.json()
+      console.log("[v0] Backend response:", result)
 
-        setBalance(0.05)
+      if (result.success && result.user) {
+        setBalance(result.user.balance || 0.05)
+
+        // Load user inventory from backend
+        const inventoryResponse = await fetch(
+          `https://ton-mystery-backend.onrender.com/api/user/${tgUser.id}/inventory`,
+        )
+        if (inventoryResponse.ok) {
+          const inventoryData = await inventoryResponse.json()
+          setInventory(inventoryData.inventory || [])
+        }
       } else {
-        console.log("[v0] Existing user found, updating online status")
-        await supabase
-          .from("users")
-          .update({
-            is_online: true,
-            last_seen: new Date().toISOString(),
-          })
-          .eq("telegram_id", tgUser.id)
-
-        setBalance(existingUser.ton_balance || 0)
+        console.error("[v0] Backend user creation failed:", result.error)
+        // Fallback to demo balance
+        setBalance(0.05)
       }
-
-      const { data: userInventory } = await supabase
-        .from("user_inventory")
-        .select(`
-          *,
-          telegram_gifts (
-            id,
-            name,
-            emoji,
-            price_ton,
-            rarity,
-            image_url
-          )
-        `)
-        .eq("user_id", tgUser.id.toString())
-
-      console.log("[v0] User inventory loaded:", userInventory)
-      setInventory(userInventory || [])
     } catch (error) {
-      console.error("[v0] Database initialization error:", error)
+      console.error("[v0] Backend communication error:", error)
+      // Fallback to demo balance
+      setBalance(0.05)
     }
   }
 
@@ -151,7 +132,9 @@ export default function HomePage() {
         <div className="relative z-10 flex items-center justify-between p-4">
           <div className="flex items-center gap-3">
             <img
-              src={`/placeholder.svg?height=32&width=32&query=user avatar ${user?.first_name || "user"}`}
+              src={
+                user?.photo_url || `/placeholder.svg?height=32&width=32&query=user avatar ${user?.first_name || "user"}`
+              }
               alt={user?.first_name || "User"}
               className="w-8 h-8 rounded-full"
             />

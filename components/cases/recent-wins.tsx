@@ -98,7 +98,22 @@ export function RecentWins() {
         <div className="flex gap-6 animate-scroll-left">
           {duplicatedWins.map((win, index) => (
             <div key={`${win.id}-${index}`} className="flex items-center gap-3 whitespace-nowrap flex-shrink-0">
-              <div className="text-2xl">{win.gift.emoji || win.gift.name}</div>
+              <div className="w-8 h-8 flex items-center justify-center">
+                {win.gift.image ? (
+                  <img
+                    src={win.gift.image || "/placeholder.svg"}
+                    alt={win.gift.name}
+                    className="w-8 h-8 object-contain"
+                    onError={(e) => {
+                      e.currentTarget.style.display = "none"
+                      e.currentTarget.nextElementSibling.style.display = "block"
+                    }}
+                  />
+                ) : null}
+                <div className="text-2xl" style={{ display: win.gift.image ? "none" : "block" }}>
+                  {win.gift.emoji || win.gift.name}
+                </div>
+              </div>
               <div className="flex flex-col">
                 <div className="flex items-center gap-2 text-sm">
                   <span className="text-white font-medium">{win.username}</span>

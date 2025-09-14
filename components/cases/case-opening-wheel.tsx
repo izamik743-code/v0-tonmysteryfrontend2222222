@@ -80,16 +80,16 @@ export function CaseOpeningWheel({
 
       // Animate to final position with easing
       if (wheelRef.current) {
-        wheelRef.current.style.transition = "transform 4s cubic-bezier(0.25, 0.46, 0.45, 0.94)"
+        wheelRef.current.style.transition = "transform 6s cubic-bezier(0.25, 0.46, 0.45, 0.94)"
         wheelRef.current.style.transform = `translateX(-${finalPosition}px)`
       }
 
       // Add periodic vibrations during animation
       const vibrationInterval = setInterval(() => {
         if (window.Telegram?.WebApp?.HapticFeedback) {
-          window.Telegram.WebApp.HapticFeedback.impactOccurred("light")
+          window.Telegram.WebApp.HapticFeedback.impactOccurred("medium")
         }
-      }, 200)
+      }, 300) // Increased interval from 200ms to 300ms for less frequent but more noticeable vibrations
 
       // Show result after animation completes
       setTimeout(() => {
@@ -98,11 +98,16 @@ export function CaseOpeningWheel({
         setIsAnimating(false)
         setShowResult(true)
 
-        // Success haptic feedback
         if (window.Telegram?.WebApp?.HapticFeedback) {
           window.Telegram.WebApp.HapticFeedback.notificationOccurred("success")
+          setTimeout(() => {
+            window.Telegram.WebApp.HapticFeedback.impactOccurred("heavy")
+          }, 200)
+          setTimeout(() => {
+            window.Telegram.WebApp.HapticFeedback.impactOccurred("medium")
+          }, 400)
         }
-      }, 4000)
+      }, 6000) // Updated timeout to match new 6s animation duration
     } catch (error) {
       console.error("Case opening failed:", error)
       setIsAnimating(false)
