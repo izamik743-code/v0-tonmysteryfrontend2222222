@@ -8,6 +8,7 @@ import { ProfileSection } from "@/components/profile/profile-section"
 import { BottomNavigation } from "@/components/layout/bottom-navigation"
 import { OnlineStats } from "@/components/stats/online-stats"
 import type { TelegramUser } from "@/types"
+import { apiClient } from "@/lib/api"
 
 export default function HomePage() {
   const [user, setUser] = useState<TelegramUser | null>(null)
@@ -76,32 +77,22 @@ export default function HomePage() {
     try {
       console.log("[v0] Sending user data to backend:", tgUser)
 
-      const response = await fetch("https://ton-mystery-backend.onrender.com/api/user", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          tg_id: tgUser.id,
-          username: tgUser.username || "",
-          first_name: tgUser.first_name,
-          last_name: tgUser.last_name || "",
-        }),
+      const result = await apiClient.initializeUser({
+        tg_id: tgUser.id,
+        username: tgUser.username || "",
+        first_name: tgUser.first_name,
+        last_name: tgUser.last_name || "",
+        init_data: window.Telegram?.WebApp?.initData || "",
       })
 
-      const result = await response.json()
       console.log("[v0] Backend response:", result)
 
-      if (result.success && result.user) {
-        setBalance(result.user.balance || 0.05)
+      if (result.success && result.data) {
+        setBalance(result.data.balance || 0.05)
 
-        // Load user inventory from backend
-        const inventoryResponse = await fetch(
-          `https://ton-mystery-backend.onrender.com/api/user/${tgUser.id}/inventory`,
-        )
-        if (inventoryResponse.ok) {
-          const inventoryData = await inventoryResponse.json()
-          setInventory(inventoryData.inventory || [])
+        const inventoryResult = await apiClient.getUserInventory(tgUser.id)
+        if (inventoryResult.success && inventoryResult.data) {
+          setInventory(inventoryResult.data.inventory || [])
         }
       } else {
         console.error("[v0] Backend user creation failed:", result.error)

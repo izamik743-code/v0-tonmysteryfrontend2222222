@@ -1,6 +1,6 @@
 import type { UserState, BackendResponse, Transaction, InventoryItem } from "@/types"
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://ton-mini-app-backend.onrender.com/api"
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://ton-mystery-backend.onrender.com/api"
 
 class APIClient {
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<BackendResponse<T>> {
