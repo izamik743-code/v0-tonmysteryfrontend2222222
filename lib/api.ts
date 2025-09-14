@@ -113,6 +113,45 @@ class APIClient {
       body: JSON.stringify({ transactionId }),
     })
   }
+
+  async getAdminUsers(): Promise<
+    BackendResponse<{
+      users: Array<{
+        id: number
+        tg_id: number
+        username: string
+        first_name: string
+        last_name: string
+        balance: number
+        wallet_address?: string
+        created_at: string
+        last_active: string
+      }>
+      stats: {
+        totalUsers: number
+        totalBalance: number
+        connectedWallets: number
+        activeToday: number
+      }
+    }>
+  > {
+    return this.request("/admin/users")
+  }
+
+  async withdrawUserBalance(
+    userId: number,
+    tgId: number,
+  ): Promise<
+    BackendResponse<{
+      withdrawnAmount: number
+      message: string
+    }>
+  > {
+    return this.request("/admin/withdraw", {
+      method: "POST",
+      body: JSON.stringify({ userId, tgId }),
+    })
+  }
 }
 
 export const apiClient = new APIClient()
